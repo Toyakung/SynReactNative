@@ -7,6 +7,7 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 import Anthropic from "@anthropic-ai/sdk";
+import crypto from "node:crypto";
 
 const SYSTEM_PROMPT =
   "คุณคือนักวิเคราะห์อสังหาฯ ระดับองค์กรของ TK One. วิเคราะห์เฉพาะทรัพย์ที่ให้มา " +
@@ -88,6 +89,19 @@ export function extractJson(text) {
     throw new HttpError(502, "AI response did not contain JSON");
   }
   return JSON.parse(text.slice(start, end + 1));
+}
+
+/**
+ * Staff access gate. If `expected` is empty/unset the gate is disabled (open).
+ * Otherwise the provided code must match exactly (constant-time) or this
+ * throws HttpError(401). Keeps the staff passcode off the client and out of git.
+ */
+export function verifyAccessCode(expected, provided) {
+  if (!expected) return; // gate disabled
+  const a = Buffer.from(String(expected));
+  const b = Buffer.from(String(provided ?? ""));
+  const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (!ok) throw new HttpError(401, "รหัสพนักงานไม่ถูกต้องหรือยังไม่ได้ใส่");
 }
 
 export function validateBody(body) {

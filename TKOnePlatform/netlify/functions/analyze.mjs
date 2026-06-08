@@ -3,7 +3,11 @@
    Maps the request/response to Netlify's function shape and reuses the same
    createAnalyzeHandler used by the local Express server. */
 
-import { createAnalyzeHandler, HttpError } from "../../server/handler.mjs";
+import {
+  createAnalyzeHandler,
+  HttpError,
+  verifyAccessCode,
+} from "../../server/handler.mjs";
 
 function json(statusCode, obj) {
   return {
@@ -13,11 +17,21 @@ function json(statusCode, obj) {
   };
 }
 
-/** Wrap an analyze(body) function into a Netlify handler. Exported for tests. */
-export function createNetlifyHandler(analyzeFn) {
+/**
+ * Wrap an analyze(body) function into a Netlify handler. Exported for tests.
+ * @param {{ accessCode?: string }} opts staff passcode gate (optional)
+ */
+export function createNetlifyHandler(analyzeFn, opts = {}) {
   return async function handler(event) {
     if (event.httpMethod !== "POST") {
       return json(405, { error: "method not allowed" });
+    }
+    try {
+      verifyAccessCode(opts.accessCode, event.headers?.["x-tkone-code"]);
+    } catch (err) {
+      return json(err instanceof HttpError ? err.status : 401, {
+        error: err?.message || "unauthorized",
+      });
     }
     let body;
     try {
@@ -41,4 +55,5 @@ export const handler = createNetlifyHandler(
     apiKey: process.env.ANTHROPIC_API_KEY,
     model: process.env.TKONE_MODEL,
   }),
+  { accessCode: process.env.TKONE_ACCESS_CODE },
 );

@@ -1,6 +1,6 @@
 /* Express AI proxy. The browser only ever talks to this server. */
 import express from "express";
-import { createAnalyzeHandler, HttpError } from "./handler.mjs";
+import { createAnalyzeHandler, HttpError, verifyAccessCode } from "./handler.mjs";
 
 const PORT = process.env.PORT || 8787;
 const app = express();
@@ -17,6 +17,7 @@ app.get("/api/health", (_req, res) => {
 
 app.post("/api/analyze", async (req, res) => {
   try {
+    verifyAccessCode(process.env.TKONE_ACCESS_CODE, req.headers["x-tkone-code"]);
     const result = await analyze(req.body);
     res.json(result);
   } catch (err) {

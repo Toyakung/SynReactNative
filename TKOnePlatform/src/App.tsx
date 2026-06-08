@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { C } from "./theme";
 import { INTENT_LABELS, PTYPE_LABELS, SPECIAL_OPTS, STEPS } from "./constants";
 import type { Intent, PropertyType } from "./types";
@@ -18,11 +18,16 @@ export default function App() {
     screen, setScreen, req, setR, toggleSpecial,
     cands, draft, setDraft, newDraft, editDraft, saveCand, removeCand,
     analysis, loading, doAnalyze, reportView, setReportView, editMsgs, setEditMsgs,
+    accessCode, codePrompt, setCodePrompt, codeError, submitAccessCode,
   } = p;
 
   const reqErrors = useMemo(() => validateRequirement(req), [req]);
   const draftErrors = useMemo(() => (draft ? validateCandidate(draft) : {}), [draft]);
   const [showReqErrors, setShowReqErrors] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  useEffect(() => {
+    if (codePrompt) setCodeInput(accessCode);
+  }, [codePrompt, accessCode]);
 
   const candById = (id: number) => cands.find((c) => c.id === id);
   const ranked = analysis?.ranked ?? [];
@@ -48,6 +53,13 @@ export default function App() {
         <b style={{ letterSpacing: 0.5 }}>TK ONE</b>
         <span style={{ fontSize: 12, color: "#9fb0c8" }}>Internal Staff Platform · Property Intelligence</span>
         <span style={{ flex: 1 }} />
+        <button
+          onClick={() => setCodePrompt(true)}
+          title="ตั้ง/เปลี่ยนรหัสพนักงานสำหรับเรียก AI"
+          style={{ background: "transparent", color: accessCode ? "#1ad6c0" : "#9fb0c8", border: "1px solid #2c4a66", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600 }}
+        >
+          {accessCode ? "🔓 รหัสพนักงาน" : "🔑 ใส่รหัสพนักงาน"}
+        </button>
         <span style={{ fontSize: 11, color: "#9fb0c8", fontFamily: "monospace" }}>เครื่องมือภายใน · v1</span>
       </div>
 
@@ -454,6 +466,46 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Staff passcode gate */}
+      {codePrompt && (
+        <div
+          className="no-print"
+          role="dialog"
+          aria-modal="true"
+          style={{ position: "fixed", inset: 0, background: "#0009", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}
+          onClick={() => setCodePrompt(false)}
+        >
+          <div style={{ ...card, padding: 22, width: 380, maxWidth: "100%" }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 4px", color: C.navy }}>🔐 รหัสพนักงาน</h3>
+            <p style={{ color: C.muted, fontSize: 12.5, marginTop: 0 }}>
+              การเรียก AI วิเคราะห์สงวนสำหรับพนักงานองค์กร — กรอกรหัสที่ได้รับจากผู้ดูแลระบบ
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitAccessCode(codeInput.trim());
+              }}
+            >
+              <Field label="รหัสพนักงาน" htmlFor="accessCode" error={codeError ? "รหัสไม่ถูกต้อง ลองอีกครั้ง" : undefined}>
+                <input
+                  id="accessCode"
+                  type="password"
+                  autoFocus
+                  style={inp}
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </Field>
+              <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <Btn kind="ghost" small onClick={() => setCodePrompt(false)}>ยกเลิก</Btn>
+                <Btn small type="submit" disabled={!codeInput.trim()}>บันทึก & วิเคราะห์</Btn>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runAI, sanitizeResult } from "./client";
+import { AuthError, runAI, sanitizeResult } from "./client";
 import { blankCandidate } from "../constants";
 import type { Candidate, Requirement } from "../types";
 
@@ -148,5 +148,17 @@ describe("runAI", () => {
     const out = await runAI(req, cands, { fetchImpl });
     expect(out._engine).toContain("built-in");
     expect(out.ranked.length).toBe(cands.length);
+  });
+
+  it("sends the staff passcode header when provided", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({ ranked: [{ id: 1, matchScore: 70 }] }));
+    await runAI(req, cands, { fetchImpl, accessCode: "s3cret" });
+    const init = fetchImpl.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>)["x-tkone-code"]).toBe("s3cret");
+  });
+
+  it("throws AuthError on 401 instead of falling back", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 401 } as Response);
+    await expect(runAI(req, cands, { fetchImpl })).rejects.toBeInstanceOf(AuthError);
   });
 });

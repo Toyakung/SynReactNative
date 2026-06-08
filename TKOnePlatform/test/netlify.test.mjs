@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createNetlifyHandler } from "../netlify/functions/analyze.mjs";
 import { HttpError } from "../server/handler.mjs";
 
-const post = (body) => ({ httpMethod: "POST", body });
+const post = (body, headers = {}) => ({ httpMethod: "POST", body, headers });
 
 describe("createNetlifyHandler", () => {
   it("returns 200 with the analysis result", async () => {
@@ -38,5 +38,20 @@ describe("createNetlifyHandler", () => {
     const handler = createNetlifyHandler(analyze);
     const res = await handler(post("{}"));
     expect(res.statusCode).toBe(500);
+  });
+
+  it("enforces the staff passcode when configured", async () => {
+    const analyze = vi.fn().mockResolvedValue({ ranked: [] });
+    const handler = createNetlifyHandler(analyze, { accessCode: "s3cret" });
+
+    const denied = await handler(post('{"req":{},"cands":[{"id":1}]}'));
+    expect(denied.statusCode).toBe(401);
+    expect(analyze).not.toHaveBeenCalled();
+
+    const allowed = await handler(
+      post('{"req":{},"cands":[{"id":1}]}', { "x-tkone-code": "s3cret" }),
+    );
+    expect(allowed.statusCode).toBe(200);
+    expect(analyze).toHaveBeenCalledOnce();
   });
 });

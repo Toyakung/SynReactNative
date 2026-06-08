@@ -78,8 +78,21 @@ Netlify มี **Functions** (serverless) ในตัว — ใช้เป็
 Function เรียก Claude ด้วย key ที่อยู่ใน env ของ Netlify (ไม่หลุดไป browser)
 ถ้ายังไม่ใส่ key → Function ตอบ 503 → frontend fallback ไป built-in engine อัตโนมัติ
 
-> ⚠️ endpoint สาธารณะที่ต่อ Claude = ใครมีลิงก์ก็ยิงได้ (กินเครดิต) สำหรับใช้งานจริงในองค์กร
-> ควรเพิ่มชั้นกันแอบใช้ เช่น passcode หรือจำกัด origin — บอกผมได้ถ้าต้องการให้เพิ่ม
+### จำกัดการใช้งานเฉพาะพนักงาน (passcode gate)
+
+endpoint ที่ต่อ Claude เป็น public — กันคนนอกแอบใช้/กินเครดิตด้วยรหัสพนักงาน:
+
+1. Netlify → Environment variables → เพิ่ม `TKONE_ACCESS_CODE` = รหัสที่ตั้งเอง (เช่น `tkone-2026`)
+2. Trigger deploy ใหม่
+3. พนักงานเข้าเว็บ → กดปุ่ม **🔑 ใส่รหัสพนักงาน** (มุมขวาบน) ใส่รหัสครั้งเดียว (จำไว้ในเครื่อง)
+
+กลไก: ตรวจรหัสฝั่ง server แบบ constant-time (`x-tkone-code` header) — รหัสไม่อยู่ในโค้ด/ไม่หลุดใน git
+ถ้าไม่ตั้ง `TKONE_ACCESS_CODE` = เปิดให้ทุกคน (gate ปิด) · เปลี่ยน/ยกเลิกรหัสได้ทุกเมื่อจาก Netlify
+
+> ทางเลือกที่แข็งแรงกว่า (ถ้าต้องการบัญชีรายคน + audit log):
+> - **Netlify Identity / SSO** — ล็อกอินด้วยอีเมล เชิญเฉพาะพนักงาน (เหมาะองค์กรจริง)
+> - **Cloudflare Access / Netlify password protection** — กั้นทั้งไซต์ก่อนเข้า
+> - passcode นี้เหมาะกับทีมเล็ก/แชร์เร็ว ส่วน Identity เหมาะเมื่อต้องรู้ว่าใครใช้เมื่อไร
 
 ## คุณภาพ / เทสต์
 

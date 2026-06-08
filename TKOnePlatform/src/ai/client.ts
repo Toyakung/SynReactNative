@@ -23,7 +23,13 @@ export interface RunAIOptions {
   /** Skip the network entirely and use the deterministic built-in engine
    *  (static demo deployments with no backend). */
   forceLocal?: boolean;
+  /** Staff passcode sent to the backend gate (when enabled). */
+  accessCode?: string;
 }
+
+/** Thrown when the backend rejects the staff passcode (HTTP 401). The UI uses
+ *  this to prompt for / re-prompt the code instead of silently falling back. */
+export class AuthError extends Error {}
 
 const GRADES: Grade[] = ["A", "B", "C", "D", "F"];
 const RISKS: RiskGrade[] = ["Low", "Med", "High"];
@@ -132,17 +138,22 @@ export async function runAI(
   }
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const endpoint = opts.endpoint ?? "/api/analyze";
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (opts.accessCode) headers["x-tkone-code"] = opts.accessCode;
   try {
     const res = await fetchImpl(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ req, cands }),
       signal: opts.signal,
     });
+    // 401 = passcode rejected → surface to the UI, don't silently fall back.
+    if (res.status === 401) throw new AuthError("รหัสพนักงานไม่ถูกต้องหรือยังไม่ได้ใส่");
     if (!res.ok) throw new Error(`AI proxy responded ${res.status}`);
     const data = await res.json();
     return sanitizeResult(data, req, cands);
-  } catch {
+  } catch (e) {
+    if (e instanceof AuthError) throw e;
     const fb = localAnalyze(req, cands);
     fb._engine = "built-in (AI ไม่พร้อมใช้งานในขณะนี้)";
     return fb;

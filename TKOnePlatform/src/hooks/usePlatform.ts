@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AnalysisResult, Candidate, Requirement } from "../types";
 import { DEFAULT_REQ, SAMPLE_CANDS, blankCandidate } from "../constants";
-import { runAI } from "../ai/client";
+import { AuthError, runAI } from "../ai/client";
 
 export type Screen = "intake" | "candidates" | "analysis" | "reports" | "outreach";
 export type ReportView = "client" | "internal";
 
 const STORAGE_KEY = "tkone.session.v1";
+const CODE_KEY = "tkone.accessCode.v1";
 
 interface Persisted {
   req: Requirement;
@@ -38,6 +39,11 @@ export function usePlatform() {
   const [loading, setLoading] = useState(false);
   const [reportView, setReportView] = useState<ReportView>("client");
   const [editMsgs, setEditMsgs] = useState<Record<string, string>>({});
+  const [accessCode, setAccessCodeState] = useState<string>(
+    () => localStorage.getItem(CODE_KEY) ?? "",
+  );
+  const [codePrompt, setCodePrompt] = useState(false);
+  const [codeError, setCodeError] = useState(false);
 
   // Persist requirement + candidates so a refresh never loses staff work.
   useEffect(() => {
@@ -89,18 +95,56 @@ export function usePlatform() {
     [],
   );
 
-  const doAnalyze = useCallback(async () => {
-    setLoading(true);
-    setScreen("analysis");
-    const forceLocal = import.meta.env.VITE_STATIC_DEMO === "true";
-    const r = await runAI(req, cands, { forceLocal });
-    setAnalysis(r);
-    setEditMsgs({
-      customer: r.customerMessage,
-      ...Object.fromEntries((r.ownerOutreach || []).map((o) => [`o${o.id}`, o.message])),
-    });
-    setLoading(false);
-  }, [req, cands]);
+  const setAccessCode = useCallback((code: string) => {
+    setAccessCodeState(code);
+    try {
+      localStorage.setItem(CODE_KEY, code);
+    } catch {
+      /* storage may be unavailable */
+    }
+  }, []);
+
+  const doAnalyze = useCallback(
+    async (codeOverride?: string) => {
+      setLoading(true);
+      setScreen("analysis");
+      const forceLocal = import.meta.env.VITE_STATIC_DEMO === "true";
+      const code = codeOverride ?? accessCode;
+      try {
+        const r = await runAI(req, cands, { forceLocal, accessCode: code });
+        setAnalysis(r);
+        setEditMsgs({
+          customer: r.customerMessage,
+          ...Object.fromEntries(
+            (r.ownerOutreach || []).map((o) => [`o${o.id}`, o.message]),
+          ),
+        });
+        setCodePrompt(false);
+        setCodeError(false);
+      } catch (e) {
+        if (e instanceof AuthError) {
+          // Staff passcode required/incorrect — prompt instead of analyzing.
+          setCodeError(Boolean(code));
+          setCodePrompt(true);
+          setScreen("candidates");
+        } else {
+          throw e;
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [req, cands, accessCode],
+  );
+
+  // Submit a passcode from the prompt, persist it, and retry analysis.
+  const submitAccessCode = useCallback(
+    (code: string) => {
+      setAccessCode(code);
+      void doAnalyze(code);
+    },
+    [setAccessCode, doAnalyze],
+  );
 
   return {
     screen, setScreen,
@@ -110,5 +154,7 @@ export function usePlatform() {
     analysis, loading, doAnalyze,
     reportView, setReportView,
     editMsgs, setEditMsgs,
+    accessCode, setAccessCode,
+    codePrompt, setCodePrompt, codeError, submitAccessCode,
   };
 }

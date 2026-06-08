@@ -5,6 +5,7 @@ import {
   createAnalyzeHandler,
   extractJson,
   validateBody,
+  verifyAccessCode,
 } from "../server/handler.mjs";
 
 const body = {
@@ -26,6 +27,21 @@ describe("validateBody", () => {
     expect(() => validateBody({})).toThrow(/req is required/);
     expect(() => validateBody({ req: {}, cands: [] })).toThrow(/non-empty/);
     expect(() => validateBody({ req: {}, cands: "x" })).toThrow(/non-empty/);
+  });
+});
+
+describe("verifyAccessCode", () => {
+  it("is a no-op when no code is configured (gate disabled)", () => {
+    expect(() => verifyAccessCode("", "anything")).not.toThrow();
+    expect(() => verifyAccessCode(undefined, undefined)).not.toThrow();
+  });
+  it("passes when the provided code matches exactly", () => {
+    expect(() => verifyAccessCode("s3cret", "s3cret")).not.toThrow();
+  });
+  it("throws 401 on mismatch or missing code", () => {
+    expect(() => verifyAccessCode("s3cret", "wrong")).toThrow(HttpError);
+    expect(() => verifyAccessCode("s3cret", "")).toThrow(/รหัสพนักงาน/);
+    expect(() => verifyAccessCode("s3cret", undefined)).toThrow(HttpError);
   });
 });
 
