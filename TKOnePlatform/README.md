@@ -57,6 +57,30 @@ npm run dev       # frontend (proxy /api → :8787)
 > ต้นทุน: เรียก Claude คิดตามจำนวน token ต่อการวิเคราะห์ 1 ครั้ง ดูราคาที่ console.anthropic.com
 > ส่วนลิงก์เดโม static (Netlify) ใช้ built-in engine ไม่เรียก API จึงไม่มีค่าใช้จ่ายและไม่ต้องมี key
 
+## Deploy บน Netlify ให้ต่อ Claude จริง (ทำจากมือถือได้)
+
+Netlify มี **Functions** (serverless) ในตัว — ใช้เป็น backend proxy ได้เลย ไม่ต้องมี host อื่น
+(ไฟล์พร้อมแล้ว: `netlify.toml` + `netlify/functions/analyze.mjs`)
+
+> ลิงก์ Netlify Drop แบบ static เดิม **เรียก Claude ไม่ได้** (ไม่มี backend) — ต้องเปลี่ยนมาเป็น
+> deploy แบบ **เชื่อม GitHub repo** เพื่อให้ Function ทำงาน
+
+ขั้นตอน (ทำในเบราว์เซอร์มือถือที่ **app.netlify.com** ได้):
+1. **Add new site → Import an existing project → GitHub** → เลือก repo `SynReactNative`
+   - Netlify จะอ่าน `netlify.toml` เอง (base = `TKOnePlatform`, build = `npm run build`,
+     functions = `netlify/functions`) — ไม่ต้องตั้งค่า build เพิ่ม
+2. **Site settings → Environment variables → Add**:
+   - `ANTHROPIC_API_KEY` = `sk-ant-...` (จาก console.anthropic.com)
+   - (ออปชัน) `TKONE_MODEL` = `claude-opus-4-8` หรือ `claude-sonnet-4-6`
+3. **Deploys → Trigger deploy** → เปิดลิงก์เว็บ → กด "ให้ AI วิเคราะห์" = ต่อ Claude จริง
+
+ทำงานยังไง: frontend เรียก `/api/analyze` → `netlify.toml` redirect ไปที่ Function →
+Function เรียก Claude ด้วย key ที่อยู่ใน env ของ Netlify (ไม่หลุดไป browser)
+ถ้ายังไม่ใส่ key → Function ตอบ 503 → frontend fallback ไป built-in engine อัตโนมัติ
+
+> ⚠️ endpoint สาธารณะที่ต่อ Claude = ใครมีลิงก์ก็ยิงได้ (กินเครดิต) สำหรับใช้งานจริงในองค์กร
+> ควรเพิ่มชั้นกันแอบใช้ เช่น passcode หรือจำกัด origin — บอกผมได้ถ้าต้องการให้เพิ่ม
+
 ## คุณภาพ / เทสต์
 
 ```bash
