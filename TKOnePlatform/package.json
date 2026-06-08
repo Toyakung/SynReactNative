@@ -1,0 +1,38 @@
+{
+  "name": "tk-one-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TK ONE — Internal Staff Property Intelligence Platform (Vite + React + TS)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "server": "node server/index.mjs",
+    "start": "concurrently -k \"npm:server\" \"npm:dev\""
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^2.1.9",
+    "concurrently": "^9.0.1",
+    "express": "^4.21.0",
+    "jsdom": "^25.0.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.20",
+    "vitest": "^2.1.9"
+  }
+}
