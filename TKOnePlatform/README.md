@@ -34,6 +34,29 @@ npm run server   # backend proxy
 npm run dev       # frontend (proxy /api → :8787)
 ```
 
+## เชื่อมต่อ AI จริง (Claude)
+
+จุดต่อ AI อยู่ที่ backend proxy เท่านั้น (`server/`) — frontend ไม่เคยเห็น API key
+
+1. **ขอ API key**: console.anthropic.com → API Keys → สร้าง key (`sk-ant-...`)
+2. **ใส่ใน `.env`** (ห้าม commit ไฟล์นี้ — มี `.gitignore` กันไว้แล้ว):
+   ```bash
+   cp .env.example .env
+   # แก้ ANTHROPIC_API_KEY=sk-ant-...
+   ```
+3. **รัน**: `npm start` (proxy :8787 + web :5173) แล้วกด "ให้ AI วิเคราะห์" — ระบบจะเรียก Claude จริง
+
+รายละเอียดการต่อ:
+- ใช้ **Anthropic SDK อย่างเป็นทางการ** (`@anthropic-ai/sdk`) ฝั่ง server (`server/handler.mjs`)
+- โมเดลเริ่มต้น **`claude-opus-4-8`** (เก่งสุด) — ปรับได้ที่ `TKONE_MODEL` ใน `.env`
+  (ถ้าเน้นปริมาณ/ลดต้นทุน ใช้ `claude-sonnet-4-6`)
+- ใช้ **Structured Outputs** (`output_config.format` + JSON Schema) การันตีว่าโมเดลตอบ JSON
+  ตรง contract ทุกครั้ง — เกรด A–F / Low-Med-High ถูกบังคับด้วย enum
+- ถ้า AI ล่ม/ไม่มี key → frontend fallback ไป built-in engine อัตโนมัติ ระบบใช้งานได้เสมอ
+
+> ต้นทุน: เรียก Claude คิดตามจำนวน token ต่อการวิเคราะห์ 1 ครั้ง ดูราคาที่ console.anthropic.com
+> ส่วนลิงก์เดโม static (Netlify) ใช้ built-in engine ไม่เรียก API จึงไม่มีค่าใช้จ่ายและไม่ต้องมี key
+
 ## คุณภาพ / เทสต์
 
 ```bash

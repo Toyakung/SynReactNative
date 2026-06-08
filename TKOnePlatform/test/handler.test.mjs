@@ -12,6 +12,11 @@ const body = {
   cands: [{ id: 1, name: "A", price: "1500000" }],
 };
 
+// A fake Anthropic client whose messages.create returns a canned response.
+const fakeClient = (text) => ({
+  messages: { create: vi.fn().mockResolvedValue({ content: [{ type: "text", text }] }) },
+});
+
 describe("validateBody", () => {
   it("accepts a well-formed body", () => {
     expect(validateBody(body)).toEqual(body);
@@ -29,7 +34,7 @@ describe("buildUserPrompt", () => {
     const p = buildUserPrompt(body.req, body.cands);
     expect(p).toContain("อโศก");
     expect(p).toContain('"name":"A"');
-    expect(p).toContain("ownerOutreach");
+    expect(p).toContain("ทรัพย์ที่พนักงานหามา");
   });
 });
 
@@ -43,70 +48,43 @@ describe("extractJson", () => {
 });
 
 describe("createAnalyzeHandler", () => {
-  it("throws 503 when no API key is configured", async () => {
-    const handler = createAnalyzeHandler({ fetchImpl: vi.fn() });
+  it("throws 503 when no client/API key is configured", async () => {
+    const handler = createAnalyzeHandler();
     await expect(handler(body)).rejects.toMatchObject({ status: 503 });
   });
 
-  it("calls Anthropic with the key header and returns parsed JSON", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        content: [
-          { type: "text", text: '{"ranked":[{"id":1,"matchScore":80}]}' },
-          { type: "other", text: "ignored" },
-        ],
-      }),
-    });
-    const handler = createAnalyzeHandler({ apiKey: "sk-test", fetchImpl, model: "m" });
+  it("calls the SDK with structured output config and returns parsed JSON", async () => {
+    const client = fakeClient('{"ranked":[{"id":1,"matchScore":80}]}');
+    const handler = createAnalyzeHandler({ client, model: "m" });
     const out = await handler(body);
     expect(out._engine).toBe("claude");
     expect(out.ranked[0].matchScore).toBe(80);
 
-    const [, init] = fetchImpl.mock.calls[0];
-    expect(init.headers["x-api-key"]).toBe("sk-test");
-    expect(JSON.parse(init.body).model).toBe("m");
+    const params = client.messages.create.mock.calls[0][0];
+    expect(params.model).toBe("m");
+    expect(params.output_config.format.type).toBe("json_schema");
+    expect(params.system).toContain("TK One");
   });
 
-  it("throws 502 when Anthropic responds with an error", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 429 });
-    const handler = createAnalyzeHandler({ apiKey: "sk-test", fetchImpl });
-    await expect(handler(body)).rejects.toMatchObject({ status: 502 });
-  });
-
-  it("tolerates a missing content array", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
-    const handler = createAnalyzeHandler({ apiKey: "sk-test", fetchImpl });
-    await expect(handler(body)).rejects.toThrow(HttpError); // no JSON to extract
-  });
-
-  it("defaults config and falls back to globalThis.fetch", async () => {
-    // no-arg construction exercises the default cfg + default fetch wiring
-    const noArg = createAnalyzeHandler();
-    await expect(noArg(body)).rejects.toMatchObject({ status: 503 });
-
-    const stub = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ content: [{ type: "text", text: "{}" }] }),
-    });
-    vi.stubGlobal("fetch", stub);
-    try {
-      const handler = createAnalyzeHandler({ apiKey: "sk-test" });
-      await handler(body);
-      expect(stub).toHaveBeenCalledOnce();
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("uses the default model when none is given", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ content: [{ type: "text", text: "{}" }] }),
-    });
-    const handler = createAnalyzeHandler({ apiKey: "sk-test", fetchImpl });
+  it("defaults to claude-opus-4-8 when no model is given", async () => {
+    const client = fakeClient("{}");
+    const handler = createAnalyzeHandler({ client });
     await handler(body);
-    const [, init] = fetchImpl.mock.calls[0];
-    expect(JSON.parse(init.body).model).toBe("claude-sonnet-4-20250514");
+    expect(client.messages.create.mock.calls[0][0].model).toBe("claude-opus-4-8");
+  });
+
+  it("wraps SDK errors as HttpError, preserving the status when present", async () => {
+    const client = { messages: { create: vi.fn().mockRejectedValue(Object.assign(new Error("rate limited"), { status: 429 })) } };
+    const handler = createAnalyzeHandler({ client });
+    await expect(handler(body)).rejects.toMatchObject({ status: 429 });
+
+    const noStatus = { messages: { create: vi.fn().mockRejectedValue(new Error("boom")) } };
+    await expect(createAnalyzeHandler({ client: noStatus })(body)).rejects.toMatchObject({ status: 502 });
+  });
+
+  it("throws when the response carries no JSON text", async () => {
+    const client = { messages: { create: vi.fn().mockResolvedValue({}) } };
+    const handler = createAnalyzeHandler({ client });
+    await expect(handler(body)).rejects.toThrow(HttpError);
   });
 });
