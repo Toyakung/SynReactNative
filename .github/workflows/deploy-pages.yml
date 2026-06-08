@@ -1,0 +1,76 @@
+name: Deploy TK ONE to GitHub Pages
+
+# Builds the TK ONE platform and publishes a shareable static demo.
+# The static demo runs the deterministic built-in engine (no API key, no cost),
+# so it is safe to share with colleagues and clients.
+
+on:
+  push:
+    branches:
+      - claude/tk-one-property-platform-Zplhu
+      - master
+    paths:
+      - "TKOnePlatform/**"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: TKOnePlatform
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: TKOnePlatform/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test (100% coverage gate)
+        run: npm run test:coverage
+
+      - name: Build (static demo)
+        run: npm run build
+        env:
+          VITE_STATIC_DEMO: "true"
+
+      - name: Add SPA 404 fallback
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+        with:
+          # Auto-enable Pages (GitHub Actions source) on first run.
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: TKOnePlatform/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

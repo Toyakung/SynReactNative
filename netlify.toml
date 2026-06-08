@@ -1,0 +1,28 @@
+# Netlify config — builds the TK ONE platform and deploys the AI proxy as a
+# serverless function so the live site can call Claude without a separate host.
+# The project lives in the TKOnePlatform/ subdirectory.
+
+[build]
+  base = "TKOnePlatform"
+  command = "npm install && npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[functions]
+  # Bundle the function (and the @anthropic-ai/sdk dependency) with esbuild.
+  node_bundler = "esbuild"
+
+# Frontend calls /api/analyze → route it to the serverless function.
+[[redirects]]
+  from = "/api/analyze"
+  to = "/.netlify/functions/analyze"
+  status = 200
+
+# SPA fallback for any other path.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
