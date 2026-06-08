@@ -92,7 +92,8 @@ export function usePlatform() {
   const doAnalyze = useCallback(async () => {
     setLoading(true);
     setScreen("analysis");
-    const r = await runAI(req, cands);
+    const forceLocal = import.meta.env.VITE_STATIC_DEMO === "true";
+    const r = await runAI(req, cands, { forceLocal });
     setAnalysis(r);
     setEditMsgs({
       customer: r.customerMessage,

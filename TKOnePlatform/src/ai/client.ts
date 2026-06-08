@@ -20,6 +20,9 @@ export interface RunAIOptions {
   endpoint?: string;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
+  /** Skip the network entirely and use the deterministic built-in engine
+   *  (static demo deployments with no backend). */
+  forceLocal?: boolean;
 }
 
 const GRADES: Grade[] = ["A", "B", "C", "D", "F"];
@@ -122,6 +125,11 @@ export async function runAI(
   cands: Candidate[],
   opts: RunAIOptions = {},
 ): Promise<AnalysisResult> {
+  if (opts.forceLocal) {
+    const local = localAnalyze(req, cands);
+    local._engine = "built-in engine (เดโม)";
+    return local;
+  }
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const endpoint = opts.endpoint ?? "/api/analyze";
   try {

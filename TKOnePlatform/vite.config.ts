@@ -2,9 +2,12 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+// `base` is relative for production builds so the app works under any subpath
+// (e.g. GitHub Pages: https://<owner>.github.io/<repo>/). Dev stays at root.
 // During `vite dev` we proxy /api to the backend AI proxy server so the
 // browser never touches the Anthropic API key directly.
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === "build" ? "./" : "/",
   plugins: [react()],
   server: {
     port: 5173,
@@ -36,4 +39,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

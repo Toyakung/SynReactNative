@@ -111,6 +111,13 @@ describe("sanitizeResult", () => {
 });
 
 describe("runAI", () => {
+  it("skips the network entirely in forceLocal (demo) mode", async () => {
+    const fetchImpl = vi.fn();
+    const out = await runAI(req, cands, { forceLocal: true, fetchImpl });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(out._engine).toContain("เดโม");
+    expect(out.ranked.length).toBe(cands.length);
+  });
   it("returns the sanitized AI result on success", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       okJson({ ranked: [{ id: 1, matchScore: 91, investGrade: "A" }], _engine: "claude" }),
